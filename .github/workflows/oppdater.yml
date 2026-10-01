@@ -25,7 +25,7 @@ env:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       run: ${{ steps.guard.outputs.run }}
     steps:
@@ -42,7 +42,7 @@ jobs:
   deploy:
     needs: check
     if: needs.check.outputs.run == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
       name: github-pages
