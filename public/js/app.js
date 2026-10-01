@@ -41,7 +41,18 @@ async function refresh() {
   render();
 }
 
+// Høgda på topptekst og (mobil) menylinje, så programvisinga kan fylle resten av skjermen.
+function measureChrome() {
+  const root = document.documentElement.style;
+  const tabs = $(".tabs");
+  root.setProperty("--chrome-top", `${$(".masthead").offsetHeight}px`);
+  root.setProperty("--chrome-bottom", getComputedStyle(tabs).position === "fixed" ? `${tabs.offsetHeight}px` : "0px");
+}
+
 async function boot() {
+  measureChrome();
+  addEventListener("resize", measureChrome);
+  document.fonts?.ready.then(measureChrome);
   await loadData();
   handleImport();
   recompute();
@@ -240,7 +251,7 @@ function render() {
   $("#plan-count").textContent = ctx.result.plan.length || "";
 
   if (main.dataset.view !== r.view) {
-    main.dataset.view = r.view;
+    main.dataset.view = document.body.dataset.view = r.view;
     main.innerHTML = "";
     scrollTo(0, 0);
   }

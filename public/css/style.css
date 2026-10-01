@@ -282,11 +282,21 @@ svg { width: 1em; height: 1em; flex: none; }
   --ppm: 1.5px; /* pikslar per minutt */
   --col: 136px;
   --axis: 52px;
-  position: relative; overflow: auto; max-height: calc(100vh - 210px);
+  position: relative; overflow: auto; flex: 1; min-height: 0;
   border: 1.5px solid var(--ink); border-radius: var(--radius);
   background: var(--paper);
   overscroll-behavior: contain;
 }
+/* Programmet fyller skjermen mellom topptekst og (på mobil) menylinja, så tidslinja er
+   den einaste flata som rullar. --chrome-top/-bottom blir målte i app.js. */
+main[data-view="program"] {
+  display: flex; flex-direction: column;
+  height: calc(100vh - var(--chrome-top, 64px) - var(--chrome-bottom, 0px));
+  height: calc(100dvh - var(--chrome-top, 64px) - var(--chrome-bottom, 0px));
+  padding-bottom: 14px; overflow: hidden;
+}
+main[data-view="program"] > :not(.timeline) { flex: none; }
+body[data-view="program"] .colophon { display: none; }
 .tl {
   position: relative; display: grid;
   grid-template-columns: var(--axis) repeat(var(--cols), var(--col));
@@ -496,7 +506,13 @@ svg { width: 1em; height: 1em; flex: none; }
   .card > :not(.card__poster) { grid-column: 2; }
   .card__line { font-size: 15px; }
   .card__foot { grid-column: 1 / -1 !important; }
-  .timeline { --ppm: 1.25px; --col: 112px; --axis: 40px; max-height: calc(100vh - 230px); }
+  .timeline { --ppm: 1.25px; --col: 104px; --axis: 38px; }
+  main[data-view="program"] { padding-top: 10px; padding-bottom: 8px; }
+  .days { margin-bottom: 8px; }
+  .day { min-width: 46px; padding: 4px 6px 5px; }
+  .day__d { font-size: 19px; }
+  .program-head { margin-bottom: 8px; }
+  .program-head .h-day, .legend__item { display: none; }
   .stub { grid-template-columns: 78px minmax(0, 1fr); }
   .stub__when::before, .stub__when::after { left: 71px; }
   .stub__time { font-size: 17px; }

@@ -37,11 +37,11 @@ export function render(ctx, el, r) {
       <div class="legend">
         <label class="check"><input type="checkbox" data-ui="onlyWish" ${ctx.ui.onlyWish ? "checked" : ""}> Uthev ønskelista</label>
         ${freshness(ctx)}
-        <span><i style="background:var(--ink)"></i>I planen</span>
-        <span><i style="background:var(--ticket)"></i>Billett</span>
-        <span><i style="box-shadow:inset 0 0 0 2px var(--accent)"></i>Må sjå</span>
-        <span><i style="box-shadow:inset 0 0 0 2px var(--maybe)"></i>Kanskje</span>
-        <span><i style="background:repeating-linear-gradient(-45deg,transparent 0 3px,var(--ink-3) 3px 5px)"></i>Utseld</span>
+        <span class="legend__item"><i style="background:var(--ink)"></i>I planen</span>
+        <span class="legend__item"><i style="background:var(--ticket)"></i>Billett</span>
+        <span class="legend__item"><i style="box-shadow:inset 0 0 0 2px var(--accent)"></i>Må sjå</span>
+        <span class="legend__item"><i style="box-shadow:inset 0 0 0 2px var(--maybe)"></i>Kanskje</span>
+        <span class="legend__item"><i style="background:repeating-linear-gradient(-45deg,transparent 0 3px,var(--ink-3) 3px 5px)"></i>Utseld</span>
       </div>
     </div>
     ${shows.length ? timeline(ctx, day, shows) : html`<p class="empty">Ingen visningar denne dagen.</p>`}`);
