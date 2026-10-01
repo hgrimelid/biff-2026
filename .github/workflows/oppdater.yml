@@ -6,7 +6,7 @@ name: Oppdater og publiser
 
 on:
   schedule:
-    - cron: "4-59/10 * * * *" # GitHub kan forseinke planlagde køyringar nokre minutt
+    - cron: "4,14,24,34,44,54 * * * *" # kvart 10. min; GitHub kan forseinke planlagde køyringar
   push:
     branches: [main]
   workflow_dispatch:
