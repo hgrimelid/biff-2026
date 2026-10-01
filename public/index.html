@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="nn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>BIFF 2026 – planleggar</title>
+  <meta name="description" content="Uoffisiell planleggar for Bergen Internasjonale Filmfestival 2026.">
+  <meta name="theme-color" content="#f3efe6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#14120f" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23e2401c'/%3E%3Ctext x='16' y='23' font-family='monospace' font-size='18' font-weight='700' text-anchor='middle' fill='%23fff'%3EB%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=IBM+Plex+Mono:wght@400;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="masthead">
+    <a class="wordmark" href="#/filmar" aria-label="BIFF 2026 planleggar, til filmlista">
+      <span class="wordmark__biff">BIFF</span><span class="wordmark__year">26</span>
+      <span class="wordmark__sub">planleggar</span>
+    </a>
+    <nav class="tabs" aria-label="Hovudmeny">
+      <a class="tab" href="#/filmar" data-tab="filmar">Filmar</a>
+      <a class="tab" href="#/program" data-tab="program">Program</a>
+      <a class="tab" href="#/plan" data-tab="plan">Min plan <span class="tab__count" id="plan-count"></span></a>
+    </nav>
+  </header>
+
+  <main id="view" tabindex="-1">
+    <p class="loading">Lastar programmet …</p>
+  </main>
+
+  <footer class="colophon" id="colophon"></footer>
+
+  <dialog id="film-dialog" class="film-dialog" aria-labelledby="film-dialog-title"></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
