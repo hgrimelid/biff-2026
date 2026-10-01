@@ -58,7 +58,7 @@ jobs:
           node-version: 22
 
       - name: Test planleggaren
-        run: node --test tests/
+        run: node --test tests/*.test.mjs
 
       - uses: actions/configure-pages@v6
 
