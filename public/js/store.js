@@ -3,11 +3,13 @@
 // wish:  filmId -> "must" | "maybe"
 // shows: visningId -> { m: "lock" | "ticket" | "skip", f: filmId, s: start, v: sal }
 //        (f/s/v er ein kopi frå då merket vart sett, så vi kan varsle om endringar)
+// days:  filmId -> dato ("2026-10-17"): filmen skal berre planleggjast den dagen
+// avail: dato -> "12" | "16" | "18" (frå kl.) | "no" (ikkje): når brukaren har høve
 // buffer: minutt mellom visningar
 // prev:  visningar i førre forslag (held planen stabil)
 
 const KEY = "biff-2026-plan";
-const DEFAULTS = { v: 1, wish: {}, shows: {}, buffer: 15, prev: [] };
+const DEFAULTS = { v: 1, wish: {}, shows: {}, days: {}, avail: {}, buffer: 15, prev: [] };
 
 export function load() {
   try {
@@ -34,6 +36,8 @@ export function exportLink(state) {
   const compact = {
     w: Object.fromEntries(Object.entries(state.wish).map(([f, p]) => [f, p === "must" ? 2 : 1])),
     m: Object.fromEntries(Object.entries(state.shows).map(([id, x]) => [id, x.m[0]])),
+    d: state.days,
+    a: state.avail,
     b: state.buffer,
   };
   const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(compact))))
@@ -56,6 +60,8 @@ export function parseImport(param, showsById) {
     ...structuredClone(DEFAULTS),
     wish: Object.fromEntries(Object.entries(c.w || {}).map(([f, p]) => [f, p === 2 ? "must" : "maybe"])),
     shows,
+    days: c.d || {},
+    avail: c.a || {},
     buffer: Number.isFinite(c.b) ? c.b : DEFAULTS.buffer,
   };
 }

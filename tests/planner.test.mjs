@@ -55,7 +55,44 @@ test("utelukka, passerte og utselde visningar blir ikkje foreslått", () => {
     now: "2026-10-15T10:00",
   });
   assert.deepEqual(ids(r), ["b1"]);
-  assert.equal(r.unplaced[0].reason, "soldout");
+  assert.equal(r.unplaced[0].reason, "blocked");
+  assert.deepEqual(r.unplaced[0].causes, { past: 1, soldout: 1, skip: 1 });
+});
+
+const showOn = (id, film, day, start, min = 90) => {
+  const s = show(id, film, start, min);
+  return { ...s, start: s.start.replace("2026-10-15", day), end: s.end.replace("2026-10-15", day) };
+};
+
+test("film knytt til ein dag får berre visningar den dagen", () => {
+  const screenings = [showOn("a1", "A", "2026-10-15", "10:00"), showOn("a2", "A", "2026-10-17", "18:00")];
+  const r = solve({ screenings, wish: { A: "maybe" }, marks: {}, days: { A: "2026-10-17" } });
+  assert.deepEqual(ids(r), ["a2"]);
+});
+
+test("film knytt til ein dag blir ikkje flytta til ein annan dag ved kollisjon", () => {
+  const screenings = [
+    showOn("a1", "A", "2026-10-15", "10:00"),
+    showOn("a2", "A", "2026-10-17", "18:00"),
+    showOn("b1", "B", "2026-10-17", "18:30"),
+  ];
+  const r = solve({ screenings, wish: { A: "maybe" }, marks: { b1: "ticket" }, days: { A: "2026-10-17" } });
+  assert.deepEqual(ids(r), ["b1"]);
+  assert.equal(r.unplaced[0].reason, "conflict");
+  assert.equal(r.unplaced[0].day, "2026-10-17");
+});
+
+test("tilgjengelegheit: berre visningar innanfor tidene, låste visningar står", () => {
+  const screenings = [
+    showOn("a1", "A", "2026-10-15", "10:00"),
+    showOn("a2", "A", "2026-10-15", "17:00"),
+    showOn("b1", "B", "2026-10-16", "20:00"),
+    showOn("c1", "C", "2026-10-16", "12:00"),
+  ];
+  const avail = { "2026-10-15": "16", "2026-10-16": "no" };
+  const r = solve({ screenings, wish: { A: "maybe", B: "maybe" }, marks: { c1: "lock" }, avail });
+  assert.deepEqual(ids(r), ["a2", "c1"]);
+  assert.deepEqual(r.unplaced, [{ film: "B", prio: "maybe", reason: "blocked", causes: { unavailable: 1 } }]);
 });
 
 test("held på førre forslag når fleire løysingar er like gode", () => {

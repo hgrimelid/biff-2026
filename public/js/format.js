@@ -56,5 +56,6 @@ export const icons = {
   half: '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M8 2.6l1.7 3.6 3.9.5-2.9 2.7.7 3.9L8 11.4l-3.4 1.9.7-3.9-2.9-2.7 3.9-.5z"/></svg>',
   x: '<svg viewBox="0 0 16 16" aria-hidden="true"><path stroke="currentColor" stroke-width="2" d="M3 3l10 10M13 3L3 13"/></svg>',
   ext: '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" d="M9 2h5v5M14 2L7 9M12 10v4H2V4h4"/></svg>',
+  check: '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" d="M2.5 8.5l3.5 3.5 7.5-8"/></svg>',
   swap: '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" d="M2 5h10l-3-3M14 11H4l3 3"/></svg>',
 };

@@ -1,5 +1,5 @@
 import { html, raw, time, dayShort, runtime, poster, icons } from "../format.js";
-import { kindOf, KIND_LABEL, wishButtons, freshness } from "./shared.js";
+import { kindOf, KIND_LABEL, wishButtons, freshness, unplacedText } from "./shared.js";
 
 export function render(ctx, f) {
   const shows = ctx.showsByFilm.get(f.id) || [];
@@ -44,7 +44,7 @@ export function render(ctx, f) {
         ${f.oneliner ? html`<p class="fd__lead">${f.oneliner}</p>` : ""}
 
         <h3 style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">Visningar <span class="legend">${freshness(ctx)}</span></h3>
-        ${shows.length ? html`<ul class="shows">${shows.map((s) => showRow(ctx, s))}</ul>`
+        ${shows.length ? html`${planHint(ctx, f)}${dayPicker(ctx, f, shows)}<ul class="shows">${shows.map((s) => showRow(ctx, s))}</ul>`
           : html`<p class="muted">Ingen visningar er lagt ut på biff.no enno.</p>`}
 
         ${f.text ? html`<p class="fd__text">${f.text}</p>` : ""}
@@ -54,18 +54,43 @@ export function render(ctx, f) {
     </div>`;
 }
 
+// Éi linje som forklarer markeringa og korleis ein byter visning.
+function planHint(ctx, f) {
+  const planned = ctx.planByFilm.get(f.id) || [];
+  const swap = "Trykk «Vel denne» på ei anna visning for å byte.";
+  let text;
+  if (planned.some((p) => p.ticket)) text = "Du har billett til visninga med strek.";
+  else if (planned.some((p) => p.fixed)) text = `Du har valt visninga med strek. ${swap}`;
+  else if (planned.length) text = `Planleggaren har foreslått visninga med strek. ${swap}`;
+  else if (ctx.unplacedByFilm.has(f.id)) text = `Får ikkje plass i planen: ${unplacedText(ctx, ctx.unplacedByFilm.get(f.id))}`;
+  else text = "Merk filmen som «Må sjå» eller «Kanskje», så finn planleggaren ei visning – eller vel ei sjølv.";
+  return html`<p class="plan-hint">${text}</p>`;
+}
+
+// "Planlegg: Alle dagar | to 15. | la 17." – berre for filmar på ønskelista som går fleire dagar.
+function dayPicker(ctx, f, shows) {
+  const days = [...new Set(shows.filter((s) => !ctx.isPast(s)).map((s) => s.start.slice(0, 10)))];
+  if (!ctx.wishOf(f.id) || days.length < 2) return "";
+  const cur = ctx.dayOf(f.id) || "";
+  const opt = (d, label) => html`<button class="btn btn--small btn--ghost btn--day" data-act="day" data-film="${f.id}" data-day="${d}" aria-pressed="${cur === d}">${label}</button>`;
+  return html`<div class="day-picker"><span class="mono muted">Planlegg:</span>${opt("", "Alle dagar")}${days.map((d) => opt(d, dayShort(d)))}</div>`;
+}
+
 function showRow(ctx, s) {
   const p = ctx.planBySid.get(s.id);
   const mark = ctx.markOf(s.id);
   const past = ctx.isPast(s);
   const clash = p ? [] : ctx.clashes(s);
+  const boundDay = ctx.dayOf(s.film);
   const avail = ctx.soldOut(s) ? html`<span class="tag tag--warn">Utseld</span>`
     : s.status ? html`<span class="tag tag--warn">${s.status}</span>`
     : s.ticketsAvailable != null ? html`<span class="mono muted">${s.ticketsAvailable} ledige</span>` : "";
   const state = p?.ticket ? html`<span class="tag tag--ok">${raw(icons.ticket)}Billett</span>`
-    : mark === "lock" ? html`<span class="tag">${raw(icons.lock)}I planen, låst</span>`
-    : p ? html`<span class="tag">I planen</span>`
-    : mark === "skip" ? html`<span class="tag">Utelukka</span>` : "";
+    : mark === "lock" ? html`<span class="tag tag--chosen">${raw(icons.check)}Valt av deg</span>`
+    : p ? html`<span class="tag">Foreslått</span>`
+    : mark === "skip" ? html`<span class="tag">Utelukka</span>`
+    : ctx.wishOf(s.film) && boundDay && !s.start.startsWith(boundDay) ? html`<span class="mono muted">Ikkje dagen du valde</span>`
+    : !ctx.available(s) ? html`<span class="mono muted">Utanfor tidene dine</span>` : "";
   const [day, ...rest] = dayShort(s.start).split(" ");
   return html`
     <li class="show ${p ? "is-plan" : ""} ${p?.ticket ? "is-ticket" : ""} ${past ? "is-past" : ""}">
@@ -83,7 +108,7 @@ function showRow(ctx, s) {
           ${past ? html`<span class="mono muted">Har vore</span>` : ""}
         </div>
         ${past ? "" : html`<div class="show__acts">
-          <button class="btn btn--small btn--ghost btn--lock" data-act="mark" data-show="${s.id}" data-m="lock" aria-pressed="${mark === "lock"}" title="Vil ha akkurat denne visninga">${raw(icons.lock)}Lås</button>
+          ${p?.ticket ? "" : html`<button class="btn btn--small btn--ghost btn--lock" data-act="mark" data-show="${s.id}" data-m="lock" aria-pressed="${mark === "lock"}" title="${mark === "lock" ? "Trykk for å la planleggaren velje" : "Vel akkurat denne visninga"}">${raw(icons.check)}${mark === "lock" ? "Valt" : "Vel denne"}</button>`}
           <button class="btn btn--small btn--ghost btn--ticket" data-act="mark" data-show="${s.id}" data-m="ticket" aria-pressed="${mark === "ticket"}">${raw(icons.ticket)}Har billett</button>
           <button class="btn btn--small btn--ghost btn--skip" data-act="mark" data-show="${s.id}" data-m="skip" aria-pressed="${mark === "skip"}" title="Planleggaren skal ikkje bruke denne">Ikkje denne</button>
           ${mark === "ticket" ? "" : html`<a class="btn btn--small btn--ghost" href="${s.ticketUrl}" target="_blank" rel="noopener">Kjøp ${raw(icons.ext)}</a>`}

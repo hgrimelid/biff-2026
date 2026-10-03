@@ -27,7 +27,7 @@ export function render(ctx, el, r) {
       ${ctx.days.map((d) => {
         const n = ctx.data.screenings.filter((s) => s.start.startsWith(d)).length;
         const mine = ctx.result.plan.filter((p) => ctx.show.get(p.id).start.startsWith(d)).length;
-        return html`<a class="day" href="#/program/${d}" ${d === day ? raw('aria-current="page"') : ""}>
+        return html`<a class="day ${ctx.state.avail[d] === "no" ? "day--off" : ""}" href="#/program/${d}" ${d === day ? raw('aria-current="page"') : ""}>
           <span class="day__wd">${weekdayShort(d)}</span><span class="day__d">${dayNum(d)}</span>
           <span class="day__n">${mine ? `${mine} av ${n}` : n}</span></a>`;
       })}
@@ -70,6 +70,11 @@ function timeline(ctx, day, shows) {
   const nowLine = nowMin != null && nowMin >= from && nowMin <= to
     ? html`<div class="tl__now" style="top:calc(var(--ppm) * ${nowMin - from})"></div>` : "";
   const height = `calc(var(--ppm) * ${to - from})`;
+  // Tida før brukaren har høve (eller heile dagen) blir skravert.
+  const a = ctx.state.avail[day];
+  const offEnd = a === "no" ? to : a ? Math.min(Math.max(+a * 60, from), to) : from;
+  const off = offEnd > from
+    ? html`<div class="tl__off" style="height:calc(var(--ppm) * ${offEnd - from})" title="Utanfor tidene dine"></div>` : "";
 
   return html`
     <div class="timeline ${ctx.ui.onlyWish ? "only-wish" : ""}">
@@ -81,7 +86,7 @@ function timeline(ctx, day, shows) {
         </div>
         ${venues.map((v) => html`
           <div class="tl__col" style="height:${height}">
-            ${nowLine}
+            ${off}${nowLine}
             ${shows.filter((s) => s.venue === v).map((s) => block(ctx, s, from, endMin(s)))}
           </div>`)}
       </div>
@@ -92,7 +97,8 @@ function block(ctx, s, from, end) {
   const f = ctx.film.get(s.film);
   const p = ctx.planBySid.get(s.id);
   const mark = ctx.markOf(s.id);
-  const wish = ctx.wishOf(s.film);
+  const bound = ctx.dayOf(s.film);
+  const wish = !bound || s.start.startsWith(bound) ? ctx.wishOf(s.film) : null;
   const cls = [
     p && (p.ticket ? "is-ticket" : "is-plan"),
     wish && `is-${wish}`,

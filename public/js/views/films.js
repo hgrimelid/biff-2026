@@ -1,4 +1,4 @@
-import { html, str, esc, raw, runtime, dayShort, time, poster, icons } from "../format.js";
+import { html, str, esc, raw, runtime, dayShort, dayLong, time, poster, icons } from "../format.js";
 import { kindOf, KIND_LABEL, wishButtons, patchList } from "./shared.js";
 
 const SORTS = {
@@ -7,7 +7,9 @@ const SORTS = {
   kortast: (a, b) => (a.runtime || 999) - (b.runtime || 999),
   forste: (a, b, ctx) => first(ctx, a).localeCompare(first(ctx, b)),
 };
-const first = (ctx, f) => ctx.showsByFilm.get(f.id)?.[0]?.start ?? "9";
+// Første visning – den valde dagen om lista er filtrert på dag.
+const first = (ctx, f) =>
+  (ctx.showsByFilm.get(f.id) || []).find((s) => s.start.startsWith(ctx.ui.day))?.start ?? "9";
 
 const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 const haystack = new WeakMap();
@@ -19,9 +21,12 @@ const searchText = (f) => {
 
 export function render(ctx, el) {
   if (!el.querySelector(".toolbar")) el.innerHTML = str(toolbar(ctx));
+  el.querySelector("#f-sort").value = ctx.ui.sort; // kan bli endra av dagfilteret
   const list = filtered(ctx);
-  el.querySelector("#result-count").textContent =
-    list.length === ctx.data.films.length ? `${list.length} filmar` : `Viser ${list.length} av ${ctx.data.films.length} filmar`;
+  const count = list.length === ctx.data.films.length ? `${list.length} filmar` : `Viser ${list.length} av ${ctx.data.films.length} filmar`;
+  el.querySelector("#result-count").innerHTML = str(ctx.ui.day
+    ? html`${count} <span class="day-note">Filmar du merkjer no, blir planlagde ${dayLong(ctx.ui.day).toLowerCase()}.</span>`
+    : html`${count}`);
   const grid = el.querySelector(".grid");
   patchList(grid, list.map((f) => ({ key: f.id, html: str(card(ctx, f)) })));
   el.querySelector(".empty").hidden = list.length > 0;
@@ -77,7 +82,7 @@ function toolbar(ctx) {
       </select>
       <label class="sr-only" for="f-sort">Sorter</label>
       <select id="f-sort" class="select" data-ui="sort">
-        ${[["tittel", "A–Å"], ["interesse", "Mest interesse"], ["forste", "Første visning"], ["kortast", "Kortast"]]
+        ${[["tittel", "A–Å"], ["interesse", "Mest interesse"], ["forste", "Tidspunkt"], ["kortast", "Kortast"]]
           .map(([v, l]) => html`<option value="${v}" ${ctx.ui.sort === v ? "selected" : ""}>${l}</option>`)}
       </select>
     </div>
@@ -106,12 +111,28 @@ function card(ctx, f) {
         <span class="tag tag--kind kind-${kind}">${KIND_LABEL[kind]}</span>
         ${f.categories.filter((c) => !/^(internasjonal|norsk) (fiksjon|dokumentar)$/i.test(c)).map((c) => html`<span class="tag">${c}</span>`)}
       </div>
-      <div class="card__shows">${shows.length ? showsLine(ctx, shows, planned) : raw("<i>Ingen visningar lagt ut</i>")}</div>
+      ${ctx.ui.day ? dayShows(ctx, shows, planned) : ""}
+      ${otherShows(ctx, shows, planned)}
       <div class="card__foot">
-        ${wishButtons(ctx, f.id)}
+        ${wishButtons(ctx, f.id, ctx.ui.day)}
         ${f.interested ? html`<span class="mono muted" title="Interesserte på biff.no">${f.interested} interesserte</span>` : ""}
       </div>
     </article>`;
+}
+
+function otherShows(ctx, shows, planned) {
+  if (!shows.length) return html`<div class="card__shows"><i>Ingen visningar lagt ut</i></div>`;
+  const others = ctx.ui.day ? shows.filter((s) => !s.start.startsWith(ctx.ui.day)) : shows;
+  if (!others.length) return "";
+  return html`<div class="card__shows">${ctx.ui.day ? "Òg: " : ""}${showsLine(ctx, others, planned)}</div>`;
+}
+
+// Med dagfilter: visningane den dagen står stort, med sal.
+function dayShows(ctx, shows, planned) {
+  const ids = new Set(planned.map((p) => p.id));
+  return html`<div class="card__today">${shows.filter((s) => s.start.startsWith(ctx.ui.day)).map((s) => html`
+    <span class="${ids.has(s.id) ? "is-plan" : ""} ${ctx.soldOut(s) || ctx.isPast(s) ? "is-gone" : ""}">
+      <b>${time(s.start)}</b> ${s.venue}${ctx.soldOut(s) ? " · utseld" : ""}</span>`)}</div>`;
 }
 
 function showsLine(ctx, shows, planned) {

@@ -32,8 +32,10 @@ export function overlaps(a, b, buffer = 0) {
  * @param {number} p.buffer  minutt mellom visningar
  * @param {string} [p.now]  ISO-tid; visningar som har starta blir ikkje foreslått
  * @param {string[]} [p.prev]  visningar i førre forslag
+ * @param {Object<string,string>} [p.days]  filmId -> dato ("2026-10-17"): berre visningar den dagen
+ * @param {Object<string,string>} [p.avail]  dato -> "12" | "16" | "18" (frå kl.) | "no" (ikkje)
  */
-export function solve({ screenings, wish, marks, buffer = 15, now = null, prev = [] }) {
+export function solve({ screenings, wish, marks, buffer = 15, now = null, prev = [], days = {}, avail = {} }) {
   const byId = new Map(screenings.map((s) => [s.id, s]));
   const prevSet = new Set(prev);
   const nowMin = now ? toMin(now) : -Infinity;
@@ -53,20 +55,33 @@ export function solve({ screenings, wish, marks, buffer = 15, now = null, prev =
   const showsByFilm = groupBy(screenings, (s) => s.film);
   const unplaced = [];
   const items = [];
+  // Kvifor ei visning ikkje kan brukast (null = ho kan).
+  const blockedBy = (s) =>
+    toMin(s.start) < nowMin ? "past"
+    : marks[s.id] === "skip" ? "skip"
+    : s.status === SOLD_OUT ? "soldout"
+    : !isAvailable(s, avail) ? "unavailable"
+    : null;
+
   for (const [film, prio] of Object.entries(wish)) {
     if (fixedFilms.has(film) || !WEIGHT[prio]) continue;
-    const all = showsByFilm.get(film) || [];
-    const usable = all.filter(
-      (s) => marks[s.id] !== "skip" && toMin(s.start) >= nowMin && s.status !== SOLD_OUT,
-    );
+    const day = days[film];
+    const base = { film, prio, ...(day && { day }) };
+    const all = (showsByFilm.get(film) || []).filter((s) => !day || s.start.startsWith(day));
+    const usable = all.filter((s) => !blockedBy(s));
     const options = usable.filter((s) => !fixed.some((f) => ov(s, f)));
     if (options.length) {
       items.push({ film, prio, weight: WEIGHT[prio], options });
     } else if (usable.length) {
       const blockers = fixed.filter((f) => usable.some((s) => ov(s, f))).map((f) => f.id);
-      unplaced.push({ film, prio, reason: "conflict", blockers });
+      unplaced.push({ ...base, reason: "conflict", blockers });
+    } else if (!all.length) {
+      unplaced.push({ ...base, reason: "none" });
     } else {
-      unplaced.push({ film, prio, reason: reasonFor(all, marks, nowMin) });
+      // Tel opp kvifor visningane ikkje kan brukast, t.d. {unavailable: 2, soldout: 1}.
+      const causes = {};
+      for (const s of all) causes[blockedBy(s)] = (causes[blockedBy(s)] || 0) + 1;
+      unplaced.push({ ...base, reason: "blocked", causes });
     }
   }
 
@@ -80,8 +95,8 @@ export function solve({ screenings, wish, marks, buffer = 15, now = null, prev =
   //    Filmar som ikkje fekk plass er alltid med i dellproblemet. Godta berre betre planar.
   //    I tillegg: for kvar film som står utanfor, alle dagane han går.
   const dayOf = (s) => s.start.slice(0, 10);
-  const days = [...new Set(items.flatMap((it) => it.options.map(dayOf)))].sort();
-  const windows = [...days.map((d) => [d]), ...days.slice(1).map((d, i) => [days[i], d])];
+  const allDays = [...new Set(items.flatMap((it) => it.options.map(dayOf)))].sort();
+  const windows = [...allDays.map((d) => [d]), ...allDays.slice(1).map((d, i) => [allDays[i], d])];
   for (let round = 0, improved = true; improved && round < 5; round++) {
     improved = false;
     const placed = new Set(picks.map(([it]) => it.film));
@@ -109,7 +124,8 @@ export function solve({ screenings, wish, marks, buffer = 15, now = null, prev =
   for (const it of items) {
     if (chosen.has(it.film)) continue;
     const blockers = planned.filter((p) => it.options.some((o) => ov(o, p))).map((p) => p.id);
-    unplaced.push({ film: it.film, prio: it.prio, reason: "conflict", blockers });
+    const day = days[it.film];
+    unplaced.push({ film: it.film, prio: it.prio, ...(day && { day }), reason: "conflict", blockers });
   }
 
   const plan = [
@@ -207,13 +223,12 @@ function search(allItems, taken, ov, value) {
   return { score: Math.max(best.score, 0), picks: best.picks.map(([it, s]) => [orig.get(it.film), s]) };
 }
 
-// Kvifor ingen visning er brukbar: "none" | "past" | "soldout" | "skipped"
-function reasonFor(all, marks, nowMin) {
-  if (!all.length) return "none";
-  const future = all.filter((s) => toMin(s.start) >= nowMin);
-  if (!future.length) return "past";
-  if (future.some((s) => s.status === SOLD_OUT && marks[s.id] !== "skip")) return "soldout";
-  return "skipped";
+// Er visninga innanfor tidene brukaren har sagt at han/ho kan den dagen?
+export function isAvailable(s, avail) {
+  const a = avail[s.start.slice(0, 10)];
+  if (!a) return true;
+  if (a === "no") return false;
+  return +s.start.slice(11, 13) >= +a;
 }
 
 function popcount(x) {

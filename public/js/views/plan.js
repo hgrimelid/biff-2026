@@ -1,13 +1,7 @@
 import { html, str, raw, time, dayLong, dayShort, runtime, minutesBetween, icons } from "../format.js";
-import { freshness } from "./shared.js";
+import { freshness, unplacedText } from "./shared.js";
 import { groupBy } from "../planner.js";
 
-const REASON = {
-  none: "Ingen visningar er lagt ut på biff.no.",
-  past: "Alle visningane har vore.",
-  soldout: "Dei ledige visningane er utselde (ved siste oppdatering).",
-  skipped: "Du har utelukka alle visningane som er att.",
-};
 
 export function render(ctx, el) {
   const { plan, unplaced, conflicts } = ctx.result;
@@ -28,6 +22,7 @@ export function render(ctx, el) {
           <div class="stat"><span class="stat__n">${missing}</span><span class="stat__l">manglar billett</span></div>
           <div class="stat ${unplaced.length ? "stat--warn" : ""}"><span class="stat__n">${unplaced.length}</span><span class="stat__l">får ikkje plass</span></div>
         </div>
+        ${wishCount && !Object.keys(ctx.state.avail).length ? html`<p class="tip">Tips: <a href="#avail" data-act="scroll" data-target="avail">set når du har høve</a>, så blir ikkje filmar plasserte når du er oppteken.</p>` : ""}
         ${stale.length ? staleNotice(ctx, stale) : ""}
         ${conflicts.length ? html`<div class="notice"><b>Låste visningar kolliderer:</b><ul>
           ${conflicts.map(([a, b]) => html`<li>${label(ctx, a)} og ${label(ctx, b)}</li>`)}</ul></div>` : ""}
@@ -38,6 +33,7 @@ export function render(ctx, el) {
       <aside class="aside">
         ${unplaced.length ? html`<section class="box"><h3>Får ikkje plass</h3><ul class="unplaced">
           ${unplaced.map((u) => unplacedItem(ctx, u))}</ul></section>` : ""}
+        ${availBox(ctx)}
         <section class="box">
           <h3>Innstillingar</h3>
           <p>Minste pause mellom to filmar. Gjeld forslaget og kollisjonsvarsla.</p>
@@ -83,7 +79,8 @@ function stub(ctx, { p, s, f }) {
         <h3 class="stub__title"><button data-act="open" data-film="${f.id}">${f.title}</button></h3>
         <div class="stub__row">
           ${status}
-          ${mark === "lock" ? html`<span class="tag">${raw(icons.lock)} Låst</span>` : ""}
+          ${p.ticket ? "" : mark === "lock" ? html`<span class="tag tag--chosen">${raw(icons.check)}Valt av deg</span>` : html`<span class="tag">Foreslått</span>`}
+          ${ctx.available(s) ? "" : html`<span class="tag tag--warn">Utanfor tidene dine</span>`}
           ${ctx.wishOf(f.id) === "maybe" ? html`<span class="tag">Kanskje</span>` : ""}
           ${s.notes.map((n) => html`<span class="tag">${n}</span>`)}
           <span class="mono muted">${runtime(f.runtime)}</span>
@@ -92,13 +89,29 @@ function stub(ctx, { p, s, f }) {
           <button class="btn btn--small btn--ticket" data-act="mark" data-show="${s.id}" data-m="ticket" aria-pressed="${p.ticket}">${raw(icons.ticket)}${p.ticket ? "Har billett" : "Har kjøpt"}</button>
           ${p.ticket ? "" : html`
             <a class="btn btn--small" href="${s.ticketUrl}" target="_blank" rel="noopener">Kjøp ${raw(icons.ext)}</a>
-            <button class="btn btn--small btn--ghost btn--lock" data-act="mark" data-show="${s.id}" data-m="lock" aria-pressed="${mark === "lock"}">${raw(icons.lock)}${mark === "lock" ? "Låst" : "Lås"}</button>
+            <button class="btn btn--small btn--ghost btn--lock" data-act="mark" data-show="${s.id}" data-m="lock" aria-pressed="${mark === "lock"}" title="${mark === "lock" ? "Trykk for å la planleggaren velje" : "Behald akkurat denne visninga"}">${raw(icons.check)}${mark === "lock" ? "Valt" : "Vel denne"}</button>
             <button class="btn btn--small btn--ghost" data-act="alts" data-film="${f.id}" aria-expanded="${open}">${raw(icons.swap)}Byt</button>
             <button class="btn btn--small btn--ghost" data-act="mark" data-show="${s.id}" data-m="skip" title="Planleggaren finn ei anna visning">Ikkje denne</button>`}
         </div>`}
         ${open && !p.ticket ? alternatives(ctx, f, s) : ""}
       </div>
     </article>`;
+}
+
+const AVAIL = [["", "Heile dagen"], ["12", "Frå kl. 12"], ["16", "Frå kl. 16"], ["18", "Frå kl. 18"], ["no", "Ikkje"]];
+
+// Når brukaren har høve, per dag. Planleggaren foreslår berre visningar innanfor.
+function availBox(ctx) {
+  return html`<section class="box" id="avail">
+    <h3>Når kan du?</h3>
+    <p>Planleggaren foreslår berre visningar innanfor desse tidene. Visningar du har valt sjølv, står.</p>
+    <div class="avail">${ctx.days.map((d) => html`
+      <label for="avail-${d}" class="${ctx.state.avail[d] === "no" ? "is-off" : ""}">${dayShort(d)}</label>
+      <select id="avail-${d}" class="select select--small" data-avail="${d}">
+        ${AVAIL.map(([v, l]) => html`<option value="${v}" ${(ctx.state.avail[d] || "") === v ? "selected" : ""}>${l}</option>`)}
+      </select>`)}
+    </div>
+  </section>`;
 }
 
 function alternatives(ctx, f, current) {
@@ -118,11 +131,7 @@ function alternatives(ctx, f, current) {
 
 function unplacedItem(ctx, u) {
   const f = ctx.film.get(u.film);
-  let why = REASON[u.reason] || "";
-  if (u.reason === "conflict") {
-    const names = [...new Set(u.blockers.map((id) => ctx.film.get(ctx.show.get(id).film).title))];
-    why = `Kolliderer med ${names.slice(0, 3).join(", ")}${names.length > 3 ? ` og ${names.length - 3} til` : ""}.`;
-  }
+  const why = unplacedText(ctx, u);
   return html`<li>
     <button class="linkish" data-act="open" data-film="${f.id}"><b>${f.title}</b></button>
     <span class="tag">${u.prio === "must" ? "Må sjå" : "Kanskje"}</span>

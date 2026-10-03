@@ -1,5 +1,5 @@
 import * as store from "./store.js";
-import { solve, overlaps, groupBy, SOLD_OUT } from "./planner.js";
+import { solve, overlaps, groupBy, isAvailable, SOLD_OUT } from "./planner.js";
 import { localNow, str, dayLong, time } from "./format.js";
 import * as films from "./views/films.js";
 import * as program from "./views/program.js";
@@ -98,6 +98,8 @@ function recompute() {
     buffer: state.buffer,
     now: ctx.now,
     prev: state.prev,
+    days: state.days,
+    avail: state.avail,
   });
   ctx.planBySid = new Map(ctx.result.plan.map((p) => [p.id, p]));
   ctx.planByFilm = groupBy(ctx.result.plan, (p) => p.film);
@@ -109,6 +111,8 @@ function recompute() {
 // Hjelparar som visingane brukar.
 Object.assign(ctx, {
   wishOf: (filmId) => ctx.state.wish[filmId],
+  dayOf: (filmId) => ctx.state.days[filmId],
+  available: (s) => isAvailable(s, ctx.state.avail),
   markOf: (showId) => ctx.state.shows[showId]?.m,
   isPast: (s) => s.start < ctx.now,
   soldOut: (s) => s.status === SOLD_OUT,
@@ -127,15 +131,24 @@ Object.assign(ctx, {
 
 // ───────── Handlingar ─────────
 
-function setWish(filmId, prio) {
+// `day`: dagen lista er filtrert på når brukaren merkjer filmen. Filmen blir då
+// knytt til den dagen (sjå store.js). Utan dagfilter står ei eventuell knyting.
+function setWish(filmId, prio, day) {
   const { state } = ctx;
   if (state.wish[filmId] === prio) {
     delete state.wish[filmId];
+    delete state.days[filmId];
     // Fjern låsingar for filmen (billettar står, dei er faktiske kjøp).
     for (const [id, x] of Object.entries(state.shows)) if (x.f === filmId && x.m === "lock") delete state.shows[id];
   } else {
     state.wish[filmId] = prio;
+    if (day) setDay(filmId, day);
   }
+}
+
+function setDay(filmId, day) {
+  if (day) ctx.state.days[filmId] = day;
+  else delete ctx.state.days[filmId];
 }
 
 function setMark(showId, m) {
@@ -149,15 +162,22 @@ function setMark(showId, m) {
     // Berre éi låst visning per film; ein billett erstattar låsinga.
     for (const [id, x] of Object.entries(state.shows)) if (x.f === s.film && x.m === "lock") delete state.shows[id];
     if (!state.wish[s.film]) state.wish[s.film] = "must";
+    // Vel brukaren ei visning ein annan dag enn filmen var knytt til, flyttar knytinga med.
+    if (state.days[s.film]) state.days[s.film] = s.start.slice(0, 10);
   }
   state.shows[showId] = { m, f: s.film, s: s.start, v: s.venue };
 }
 
 const actions = {
-  wish: (d) => setWish(d.film, d.prio),
+  wish: (d) => setWish(d.film, d.prio, d.day),
+  day: (d) => setDay(d.film, d.day),
   mark: (d) => setMark(d.show, d.m),
   open: (d) => openFilm(d.film),
   close: () => closeFilm(),
+  scroll: (d) => {
+    document.getElementById(d.target)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return false;
+  },
   alts: (d) => (ctx.ui.alts.has(d.film) ? ctx.ui.alts.delete(d.film) : ctx.ui.alts.add(d.film)),
   "ack-stale": (d) => {
     const x = ctx.state.shows[d.show], s = ctx.show.get(d.show);
@@ -194,10 +214,21 @@ document.addEventListener("click", (e) => {
   render();
 });
 
-document.addEventListener("input", (e) => {
+// Nedtrekkslister: "change" (sendt av alle nettlesarar). Anna: "input" (kvart tastetrykk).
+document.addEventListener("input", (e) => e.target.tagName !== "SELECT" && onInput(e));
+document.addEventListener("change", (e) => e.target.tagName === "SELECT" && onInput(e));
+
+function onInput(e) {
   const t = e.target;
   if (t.dataset.ui) {
     ctx.ui[t.dataset.ui] = t.type === "checkbox" ? t.checked : t.value;
+    // Vel brukaren ein dag, er tidspunktet den dagen den naturlege rekkjefølgja.
+    if (t.dataset.ui === "day" && t.value && ctx.ui.sort === "tittel") ctx.ui.sort = "forste";
+    render();
+  } else if (t.dataset.avail) {
+    if (t.value) ctx.state.avail[t.dataset.avail] = t.value;
+    else delete ctx.state.avail[t.dataset.avail];
+    recompute();
     render();
   } else if (t.id === "buffer") {
     const v = Math.max(0, Math.min(120, parseInt(t.value, 10) || 0));
@@ -205,7 +236,7 @@ document.addEventListener("input", (e) => {
     recompute();
     render();
   }
-});
+}
 
 // ───────── Filmdetalj (dialog) ─────────
 

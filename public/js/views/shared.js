@@ -10,12 +10,21 @@ export function kindOf(f) {
   return "fiksjon";
 }
 
-export function wishButtons(ctx, filmId) {
+// `day`: dagen lista er filtrert på. Merkar brukaren filmen då, blir han knytt til dagen.
+export function wishButtons(ctx, filmId, day = "") {
   const w = ctx.wishOf(filmId);
+  const hint = day ? ` – blir planlagd ${dayShort(day)}` : "";
   return html`<span class="wish" role="group" aria-label="Ønskeliste">
-    <button class="btn btn--small btn--must" data-act="wish" data-film="${filmId}" data-prio="must" aria-pressed="${w === "must"}">${raw(icons.star)}Må sjå</button>
-    <button class="btn btn--small btn--maybe" data-act="wish" data-film="${filmId}" data-prio="maybe" aria-pressed="${w === "maybe"}">${raw(icons.half)}Kanskje</button>
-  </span>`;
+    <button class="btn btn--small btn--must" data-act="wish" data-film="${filmId}" data-prio="must" data-day="${day}" aria-pressed="${w === "must"}" title="Må sjå${hint}">${raw(icons.star)}Må sjå</button>
+    <button class="btn btn--small btn--maybe" data-act="wish" data-film="${filmId}" data-prio="maybe" data-day="${day}" aria-pressed="${w === "maybe"}" title="Kanskje${hint}">${raw(icons.half)}Kanskje</button>
+  </span>${dayChip(ctx, filmId)}`;
+}
+
+// "Berre la 17. ✕" når filmen er knytt til ein dag. Klikk fjernar knytinga.
+export function dayChip(ctx, filmId) {
+  const day = ctx.wishOf(filmId) && ctx.dayOf(filmId);
+  if (!day) return "";
+  return html`<button class="daychip" data-act="day" data-film="${filmId}" data-day="" title="Planlegg filmen alle dagar">Berre ${dayShort(day)} ${raw(icons.x)}</button>`;
 }
 
 // Byt berre ut element som har endra seg, så bilete ikkje blinkar og rulleposisjon står.
@@ -49,4 +58,19 @@ export function freshness(ctx) {
   const age = (Date.parse(ctx.now) - Date.parse(u)) / 60000;
   const when = u.slice(0, 10) === ctx.now.slice(0, 10) ? `kl. ${time(u)}` : `${dayShort(u)} kl. ${time(u)}`;
   return html`<span class="fresh ${age > 60 ? "fresh--old" : ""}" title="Tidspunkt for siste henting frå biff.no">Billettstatus ${when}</span>`;
+}
+
+const CAUSE = { past: "har vore", skip: "utelukka", soldout: "utseld", unavailable: "utanfor tidene dine" };
+
+// Kvifor ein film på ønskelista ikkje fekk plass, som tekst.
+export function unplacedText(ctx, u) {
+  const on = u.day ? ` ${dayShort(u.day)}` : "";
+  if (u.reason === "none") return u.day ? `Ingen visningar${on}.` : "Ingen visningar er lagt ut på biff.no.";
+  if (u.reason === "conflict") {
+    const names = [...new Set(u.blockers.map((id) => ctx.film.get(ctx.show.get(id).film).title))];
+    const list = `${names.slice(0, 3).join(", ")}${names.length > 3 ? ` og ${names.length - 3} til` : ""}`;
+    return `Kolliderer med ${list}${u.day ? ` (berre planlagd${on})` : ""}.`;
+  }
+  const parts = Object.entries(u.causes || {}).map(([c, n]) => `${n} ${CAUSE[c] || c}`);
+  return `Ingen visningar${on} passar: ${parts.join(", ")}.`;
 }
