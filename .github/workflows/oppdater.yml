@@ -1,7 +1,9 @@
 name: Oppdater og publiser
 
 # Hentar programmet frå biff.no og publiserer til GitHub Pages.
-# Køyrer kvart 10. minutt fram til festivalen er over, og ved kvar push.
+# Blir starta kvart 10. minutt av cron-job.org (workflow_dispatch via API-et), fordi
+# GitHub sin eigen cron berre køyrer kvar 4.–5. time for dette repoet. GitHub-cron
+# står som reserve. Etter FESTIVAL_END gjer berre push noko.
 # Dataa blir ikkje committa – kvar køyring publiserer det som er ferskt.
 
 on:
@@ -30,9 +32,9 @@ jobs:
       run: ${{ steps.guard.outputs.run }}
     steps:
       - id: guard
-        name: Stopp planlagde køyringar etter festivalen
+        name: Stopp automatiske køyringar etter festivalen
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(TZ=Europe/Oslo date +%F)" \> "$FESTIVAL_END" ]; then
+          if [ "${{ github.event_name }}" != "push" ] && [ "$(TZ=Europe/Oslo date +%F)" \> "$FESTIVAL_END" ]; then
             echo "Festivalen er over – hoppar over."
             echo "run=false" >> "$GITHUB_OUTPUT"
           else
